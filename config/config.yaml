@@ -1,0 +1,15 @@
+telegram:
+  token: "telegrem_bot_token" # telegram bot token
+  debug: false
+  chat: 
+    - 123123123
+  delay_msg: 1s
+
+kube:
+  config: "absolute_path_to_kube_config" # path to kube config (default: ~/.kube/config)
+  namespace: "kube_namespace"
+  filter: '"level":"error"'
+  target:
+    - pod: "pod-name"
+      container:
+        - "container_name"

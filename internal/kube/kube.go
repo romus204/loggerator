@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,11 @@ type Kube struct {
 	ctx        context.Context
 }
 
+type PodContainer struct {
+	pod       string
+	container []string
+}
+
 func NewCubeClient(ctx context.Context, cfg config.Kube, bot *telegram.Bot) *Kube {
 	kubeConfig, err := clientcmd.BuildConfigFromFlags("", cfg.KubeConfig)
 	if err != nil {
@@ -39,8 +45,9 @@ func NewCubeClient(ctx context.Context, cfg config.Kube, bot *telegram.Bot) *Kub
 }
 
 func (k *Kube) Subscribe(wg *sync.WaitGroup) {
-	for _, t := range k.cfg.Target {
-		for _, p := range t.Container {
+	pods := k.getPodsWithFilter()
+	for _, t := range pods {
+		for _, p := range t.container {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -49,7 +56,7 @@ func (k *Kube) Subscribe(wg *sync.WaitGroup) {
 					case <-k.ctx.Done():
 						return
 					default:
-						err := k.streamPodLogs(k.cfg.Namespace, t.Pod, p)
+						err := k.streamPodLogs(k.cfg.Namespace, t.pod, p)
 						if err != nil {
 							if errors.Is(err, context.Canceled) {
 								return
@@ -121,4 +128,30 @@ func (k *Kube) filterLogs(logs, keyword string) string {
 	}
 
 	return strings.Join(filteredLines, "\n")
+}
+
+// return pods with regex filter of config
+func (k *Kube) getPodsWithFilter() []PodContainer {
+	res := []PodContainer{}
+	pods, err := k.kubeClient.CoreV1().Pods(k.cfg.Namespace).List(k.ctx, v1.ListOptions{})
+	if err != nil {
+		log.Fatalf("Failed to get pods: %v", err)
+	}
+
+	for _, cp := range k.cfg.Target {
+		regex, err := regexp.Compile(cp.Pod)
+		if err != nil {
+			log.Fatalf("Failed to compile regex: %v", err)
+		}
+
+		for _, pod := range pods.Items {
+			if regex.MatchString(pod.Name) {
+				containers := make([]string, 0)
+				containers = append(containers, cp.Container...)
+				res = append(res, PodContainer{pod: pod.Name, container: containers})
+			}
+		}
+
+	}
+	return res
 }

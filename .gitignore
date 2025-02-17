@@ -1,4 +1,5 @@
 .nvim.lua
-/config/.dev.yaml
+/config/*
+!/config/config.yaml
 /.idea
 /.env

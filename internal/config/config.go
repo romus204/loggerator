@@ -13,10 +13,11 @@ type Config struct {
 }
 
 type Telegram struct {
-	Token    string        `yaml:"token"` // telegram bot token
-	Chat     []int64       `yaml:"chat"`  // cat ids
-	Debug    bool          `yaml:"debug"` // debug
-	DelayMsg time.Duration `yaml:"delay_msg"`
+	Token    string         `yaml:"token"` // telegram bot token
+	Chat     int            `yaml:"chat"`  // cat ids
+	Debug    bool           `yaml:"debug"` // debug
+	DelayMsg time.Duration  `yaml:"delay_msg"`
+	Topics   map[string]int `yaml:"topics"`
 }
 
 type Kube struct {

@@ -21,7 +21,7 @@ import (
 type Kube struct {
 	kubeClient *kubernetes.Clientset
 	cfg        config.Kube
-	bot        *telegram.Bot
+	bot        *telegram.Telegram
 	ctx        context.Context
 }
 
@@ -30,7 +30,7 @@ type PodContainer struct {
 	container []string
 }
 
-func NewCubeClient(ctx context.Context, cfg config.Kube, bot *telegram.Bot) *Kube {
+func NewCubeClient(ctx context.Context, cfg config.Kube, bot *telegram.Telegram) *Kube {
 	kubeConfig, err := clientcmd.BuildConfigFromFlags("", cfg.KubeConfig)
 	if err != nil {
 		log.Fatalf("error to create kube config: %v", err)
@@ -46,6 +46,9 @@ func NewCubeClient(ctx context.Context, cfg config.Kube, bot *telegram.Bot) *Kub
 
 func (k *Kube) Subscribe(wg *sync.WaitGroup) {
 	pods := k.getPodsWithFilter()
+	if len(pods) == 0 {
+		log.Fatal("No pods found")
+	}
 	for _, t := range pods {
 		for _, p := range t.container {
 			wg.Add(1)
@@ -108,7 +111,7 @@ func (k *Kube) streamPodLogs(namespace, podName, containerName string) error {
 						if line == "" {
 							continue
 						}
-						k.bot.Send(line)
+						k.bot.Send(line, containerName)
 					}
 				}
 			}

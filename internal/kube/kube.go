@@ -104,7 +104,7 @@ func (k *Kube) streamPodLogs(namespace, podName, containerName string) error {
 
 			if n > 0 {
 				logs := string(buf[:n])
-				filteredLogs := k.filterLogs(logs, k.cfg.Filter)
+				filteredLogs := k.filterLogs(logs)
 				if filteredLogs != "" {
 					lines := strings.Split(filteredLogs, "\n")
 					for _, line := range lines {
@@ -120,13 +120,15 @@ func (k *Kube) streamPodLogs(namespace, podName, containerName string) error {
 	}
 }
 
-func (k *Kube) filterLogs(logs, keyword string) string {
+func (k *Kube) filterLogs(logs string) string {
 	var filteredLines []string
 	lines := strings.Split(logs, "\n")
 
 	for _, line := range lines {
-		if strings.Contains(strings.ToLower(line), strings.ToLower(keyword)) {
-			filteredLines = append(filteredLines, line)
+		for _, f := range k.cfg.Filter {
+			if strings.Contains(strings.ToLower(line), strings.ToLower(f)) {
+				filteredLines = append(filteredLines, line)
+			}
 		}
 	}
 

@@ -24,7 +24,7 @@ type Kube struct {
 	Target     []Target `yaml:"target"`    // pod and containers name
 	KubeConfig string   `yaml:"config"`    // path to kube config
 	Namespace  string   `yaml:"namespace"` // kube namespace
-	Filter     string   `yaml:"filter"`
+	Filter     []string `yaml:"filter"`
 }
 
 type Target struct {

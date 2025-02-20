@@ -19,10 +19,11 @@ import (
 )
 
 type Kube struct {
-	kubeClient *kubernetes.Clientset
-	cfg        config.Kube
-	bot        *telegram.Telegram
-	ctx        context.Context
+	kubeClient  *kubernetes.Clientset
+	cfg         config.Kube
+	bot         *telegram.Telegram
+	ctx         context.Context
+	FilterRegex []*regexp.Regexp
 }
 
 type PodContainer struct {
@@ -41,7 +42,24 @@ func NewCubeClient(ctx context.Context, cfg config.Kube, bot *telegram.Telegram)
 		log.Fatalf("error to create kube config: %v", err)
 	}
 
-	return &Kube{kubeClient: clientset, cfg: cfg, bot: bot, ctx: ctx}
+	filters := make([]*regexp.Regexp, 0, len(cfg.Filter))
+
+	for _, f := range cfg.Filter {
+		regex, err := regexp.Compile(f)
+		if err != nil {
+			log.Fatalf("Failed to compile regex in filter: %v", err)
+		}
+
+		filters = append(filters, regex)
+	}
+
+	return &Kube{
+		kubeClient:  clientset,
+		cfg:         cfg,
+		bot:         bot,
+		ctx:         ctx,
+		FilterRegex: filters,
+	}
 }
 
 func (k *Kube) Subscribe(wg *sync.WaitGroup) {
@@ -49,8 +67,9 @@ func (k *Kube) Subscribe(wg *sync.WaitGroup) {
 	if len(pods) == 0 {
 		log.Fatal("No pods found")
 	}
-	for _, t := range pods {
-		for _, p := range t.container {
+
+	for _, p := range pods {
+		for _, c := range p.container {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -59,7 +78,7 @@ func (k *Kube) Subscribe(wg *sync.WaitGroup) {
 					case <-k.ctx.Done():
 						return
 					default:
-						err := k.streamPodLogs(k.cfg.Namespace, t.pod, p)
+						err := k.streamPodLogs(k.cfg.Namespace, p.pod, c)
 						if err != nil {
 							if errors.Is(err, context.Canceled) {
 								return
@@ -125,8 +144,8 @@ func (k *Kube) filterLogs(logs string) string {
 	lines := strings.Split(logs, "\n")
 
 	for _, line := range lines {
-		for _, f := range k.cfg.Filter {
-			if strings.Contains(strings.ToLower(line), strings.ToLower(f)) {
+		for _, f := range k.FilterRegex {
+			if f.MatchString(line) {
 				filteredLines = append(filteredLines, line)
 			}
 		}
@@ -146,7 +165,7 @@ func (k *Kube) getPodsWithFilter() []PodContainer {
 	for _, cp := range k.cfg.Target {
 		regex, err := regexp.Compile(cp.Pod)
 		if err != nil {
-			log.Fatalf("Failed to compile regex: %v", err)
+			log.Fatalf("Failed to compile regex in pod name: %v", err)
 		}
 
 		for _, pod := range pods.Items {

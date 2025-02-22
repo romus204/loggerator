@@ -1,15 +1,28 @@
 telegram:
-  token: "telegrem_bot_token" # telegram bot token
-  debug: false
-  chat: 
-    - 123123123
-  delay_msg: 1s
+  token: "telegram bot token" # telegram bot token
+  chat: -100123123
+  topics: # optional, if u use telegram chat as a forum
+     container-name-1: 41
+     container-name-2: 38
+     container-name-3: 22
+     container-name-4: 19
+     container-name-5: 56
+
+
 
 kube:
-  config: "absolute_path_to_kube_config" # path to kube config (default: ~/.kube/config)
+  config: "/users/home/developer/.kube/config" # path to kube config 
   namespace: "kube_namespace"
-  filter: '"level":"error"'
+  filter: # filter for logs, support regexp (only rows containing these filters will be sent)
+    - '.*"level":"error".*'
+    - '.*panic.*'
   target:
-    - pod: "pod-name"
+    - pod: "^pod-name-1-production-*" # pod name, also support regexp
+      container: # container names
+        - "container-name-1" 
+        - "container-name-2" 
+        - "container-name-3" 
+        - "container-name-4" 
+    - pod: "^pod-name-2-production-*" 
       container:
-        - "container_name"
+        - "container-name-5" 

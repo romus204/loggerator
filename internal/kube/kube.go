@@ -3,6 +3,7 @@ package kube
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"regexp"
 	"strings"
@@ -83,7 +84,7 @@ func (k *Kube) Subscribe(wg *sync.WaitGroup) {
 							if errors.Is(err, context.Canceled) {
 								return
 							}
-							log.Printf("error to stream logs: %v", err)
+							log.Printf("error to stream logs in pod: %v | container: %v | error: %v", p.pod, c, err)
 							time.Sleep(5 * time.Second)
 						}
 					}
@@ -111,6 +112,9 @@ func (k *Kube) streamPodLogs(namespace, podName, containerName string) error {
 	defer stream.Close()
 
 	buf := make([]byte, 4096)
+
+	fmt.Println("start stream pod:", podName, "| container:", containerName)
+
 	for {
 		select {
 		case <-k.ctx.Done():

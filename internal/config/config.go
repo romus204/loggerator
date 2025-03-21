@@ -18,15 +18,21 @@ type Telegram struct {
 }
 
 type Kube struct {
-	Target     []Target `yaml:"target"`    // pod and containers name
-	KubeConfig string   `yaml:"config"`    // path to kube config
-	Namespace  string   `yaml:"namespace"` // kube namespace
-	Filter     []string `yaml:"filter"`
+	Target       []Target       `yaml:"target"`    // pod and containers name
+	KubeConfig   string         `yaml:"config"`    // path to kube config
+	Namespace    string         `yaml:"namespace"` // kube namespace
+	Filter       []string       `yaml:"filter"`
+	Replacements []Replacements `yaml:"replacements"`
 }
 
 type Target struct {
 	Pod       string   `yaml:"pod"`       // pod name
 	Container []string `yaml:"container"` // container names
+}
+
+type Replacements struct {
+	Target      string `yaml:"target"`
+	Replacement string `yaml:"replacement"`
 }
 
 func NewConfig(path string) (Config, error) {

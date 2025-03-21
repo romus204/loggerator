@@ -2,9 +2,12 @@ package telegram
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/romus204/loggerator/internal/config"
 )
@@ -18,19 +21,57 @@ type SendMessageRequest struct {
 }
 
 type Telegram struct {
+	ctx     context.Context
 	UrlSend string         // main telegram api url
 	Token   string         // telegram bot token
 	Chat    int            // main chat id
 	Topics  map[string]int // topics list
+	queue   chan SendMessageRequest
+	ticker  *time.Ticker
 }
 
-func NewBot(cfg config.Telegram) *Telegram {
-	return &Telegram{
+func NewBot(ctx context.Context, cfg config.Telegram) *Telegram {
+	bot := &Telegram{
+		ctx:     ctx,
 		UrlSend: fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", cfg.Token),
 		Token:   cfg.Token,
 		Chat:    cfg.Chat,
 		Topics:  cfg.Topics,
+		queue:   make(chan SendMessageRequest, 1000),
+		ticker:  time.NewTicker(time.Minute / 20),
 	}
+
+	return bot
+}
+
+func (b *Telegram) StartSendWorker(wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for msg := range b.queue {
+			<-b.ticker.C
+			b.sendToApi(msg)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		<-b.ctx.Done()
+		if b.ticker != nil {
+			b.ticker.Stop()
+		}
+		close(b.queue)
+	}()
+}
+
+func (b *Telegram) Stop() {
+	if b.ticker != nil {
+		b.ticker.Stop()
+	}
+	close(b.queue)
 }
 
 func (b *Telegram) Send(msg string, container string) {
@@ -52,7 +93,15 @@ func (b *Telegram) Send(msg string, container string) {
 		message.MessageThreadID = t
 	}
 
-	jsonData, err := json.Marshal(message)
+	select {
+	case <-b.ctx.Done():
+		return
+	case b.queue <- message:
+	}
+}
+
+func (b *Telegram) sendToApi(msg SendMessageRequest) {
+	jsonData, err := json.Marshal(msg)
 	if err != nil {
 		fmt.Println("Error marshalling JSON:", err)
 		return
@@ -69,6 +118,7 @@ func (b *Telegram) Send(msg string, container string) {
 		fmt.Println("Error:", resp.Status)
 		return
 	}
+
 }
 
 func (b *Telegram) isJSON(str string) bool {

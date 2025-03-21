@@ -20,11 +20,17 @@ import (
 )
 
 type Kube struct {
-	kubeClient  *kubernetes.Clientset
-	cfg         config.Kube
-	bot         *telegram.Telegram
-	ctx         context.Context
-	FilterRegex []*regexp.Regexp
+	kubeClient   *kubernetes.Clientset
+	cfg          config.Kube
+	bot          *telegram.Telegram
+	ctx          context.Context
+	FilterRegex  []*regexp.Regexp
+	Replacements []Replacement
+}
+
+type Replacement struct {
+	Target  *regexp.Regexp
+	Replace string
 }
 
 type PodContainer struct {
@@ -54,12 +60,28 @@ func NewCubeClient(ctx context.Context, cfg config.Kube, bot *telegram.Telegram)
 		filters = append(filters, regex)
 	}
 
+	replacements := make([]Replacement, 0, len(cfg.Replacements))
+
+	for _, f := range cfg.Replacements {
+		regex, err := regexp.Compile(f.Target)
+		if err != nil {
+			log.Fatalf("Failed to compile regex in filter: %v", err)
+		}
+
+		replacement := Replacement{
+			Target:  regex,
+			Replace: f.Replacement,
+		}
+		replacements = append(replacements, replacement)
+	}
+
 	return &Kube{
-		kubeClient:  clientset,
-		cfg:         cfg,
-		bot:         bot,
-		ctx:         ctx,
-		FilterRegex: filters,
+		kubeClient:   clientset,
+		cfg:          cfg,
+		bot:          bot,
+		ctx:          ctx,
+		FilterRegex:  filters,
+		Replacements: replacements,
 	}
 }
 
@@ -74,6 +96,7 @@ func (k *Kube) Subscribe(wg *sync.WaitGroup) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
+				defer fmt.Println("end gorutine for container", c)
 				for {
 					select {
 					case <-k.ctx.Done():
@@ -85,12 +108,12 @@ func (k *Kube) Subscribe(wg *sync.WaitGroup) {
 								return
 							}
 							log.Printf("error to stream logs in pod: %v | container: %v | error: %v", p.pod, c, err)
-							time.Sleep(5 * time.Second)
+							time.Sleep(3 * time.Second)
 						}
 					}
 				}
 			}()
-
+			time.Sleep(time.Millisecond * 600)
 		}
 
 	}
@@ -150,6 +173,9 @@ func (k *Kube) filterLogs(logs string) string {
 	for _, line := range lines {
 		for _, f := range k.FilterRegex {
 			if f.MatchString(line) {
+				for _, r := range k.Replacements {
+					line = r.Target.ReplaceAllString(line, r.Replace)
+				}
 				filteredLines = append(filteredLines, line)
 			}
 		}

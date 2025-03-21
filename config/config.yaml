@@ -13,6 +13,9 @@ telegram:
 kube:
   config: "/users/home/developer/.kube/config" # path to kube config 
   namespace: "kube_namespace"
+  replacements:
+  - target: '\bBearer eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\b'
+    replacement: "_"
   filter: # filter for logs, support regexp (only rows containing these filters will be sent)
     - '.*"level":"error".*'
     - '.*panic.*'

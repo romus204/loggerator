@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/romus204/loggerator/internal/config"
 	"github.com/romus204/loggerator/internal/kube"
@@ -22,18 +23,20 @@ func main() {
 		log.Fatal(err)
 	}
 
-	bot := telegram.NewBot(config.Telegram)
+	bot := telegram.NewBot(ctx, config.Telegram)
 	kubeClient := kube.NewCubeClient(ctx, config.Kube, bot)
 
 	wg := sync.WaitGroup{}
 
 	kubeClient.Subscribe(&wg)
+	bot.StartSendWorker(&wg)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	cancel()
+	hardExit()
 
 	wg.Wait()
 }
@@ -48,4 +51,11 @@ func parseConfigPath() string {
 	}
 
 	return configPath
+}
+
+func hardExit() {
+	go func() {
+		time.Sleep(30 * time.Second)
+		os.Exit(1)
+	}()
 }

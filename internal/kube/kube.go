@@ -16,7 +16,6 @@ import (
 	"github.com/romus204/loggerator/internal/telegram"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 type Kube struct {
@@ -39,14 +38,9 @@ type PodContainer struct {
 }
 
 func NewCubeClient(ctx context.Context, cfg config.Kube, bot *telegram.Telegram) *Kube {
-	kubeConfig, err := clientcmd.BuildConfigFromFlags("", cfg.KubeConfig)
+	clientset, err := kubernetes.NewForConfig(cfg.Rest)
 	if err != nil {
-		log.Fatalf("error to create kube config: %v", err)
-	}
-
-	clientset, err := kubernetes.NewForConfig(kubeConfig)
-	if err != nil {
-		log.Fatalf("error to create kube config: %v", err)
+		log.Fatalf("Error creating kubernetes client: %v", err)
 	}
 
 	filters := make([]*regexp.Regexp, 0, len(cfg.Filter))
@@ -115,7 +109,6 @@ func (k *Kube) Subscribe(wg *sync.WaitGroup) {
 			}()
 			time.Sleep(time.Millisecond * 600)
 		}
-
 	}
 }
 
@@ -205,7 +198,6 @@ func (k *Kube) getPodsWithFilter() []PodContainer {
 				res = append(res, PodContainer{pod: pod.Name, container: containers})
 			}
 		}
-
 	}
 	return res
 }

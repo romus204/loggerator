@@ -1,5 +1,5 @@
 telegram:
-  token: "telegram bot token" # telegram bot token
+  token: "${TELEGRAM_BOT_TOKEN}" # telegram bot token
   chat: -100123123
   topics: # optional, if u use telegram chat as a forum
      container-name-1: 41
@@ -11,8 +11,8 @@ telegram:
 
 
 kube:
-  config: "/users/home/developer/.kube/config" # path to kube config 
-  namespace: "kube_namespace"
+  config: "${KUBE_CONFIG_PATH}" # path to kube config 
+  namespace: "${KUBE_NAMESPACE}"
   replacements:
   - target: '\bBearer eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\b'
     replacement: "_"

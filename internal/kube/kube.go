@@ -80,39 +80,64 @@ func NewCubeClient(ctx context.Context, cfg config.Kube, bot *telegram.Telegram)
 }
 
 func (k *Kube) Subscribe(wg *sync.WaitGroup) {
-	pods := k.getPodsWithFilter()
-	if len(pods) == 0 {
-		log.Fatal("No pods found")
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 
-	for _, p := range pods {
-		for _, c := range p.container {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				defer fmt.Println("end gorutine for container", c)
-				for {
-					select {
-					case <-k.ctx.Done():
-						return
-					default:
-						err := k.streamPodLogs(k.cfg.Namespace, p.pod, c)
-						if err != nil {
-							if errors.Is(err, context.Canceled) {
-								return
+		for {
+			subWg := sync.WaitGroup{}
+
+			select {
+			case <-k.ctx.Done():
+				return
+			default:
+
+				pods := k.getPodsWithFilter()
+				if len(pods) == 0 {
+					log.Fatal("No pods found")
+				}
+
+				SubCtx, cancel := context.WithCancel(k.ctx)
+				defer cancel()
+
+				for _, p := range pods {
+					for _, c := range p.container {
+						wg.Add(1)
+						subWg.Add(1)
+						go func() {
+							defer wg.Done()
+							defer subWg.Done()
+							defer fmt.Println("end gorutine for container", c)
+							for {
+								select {
+								case <-SubCtx.Done():
+									return
+								default:
+									err := k.streamPodLogs(SubCtx, k.cfg.Namespace, p.pod, c)
+									if err != nil {
+										if errors.Is(err, context.Canceled) {
+											return
+										}
+										log.Printf("error to stream logs in pod: %v | container: %v | error: %v", p.pod, c, err)
+										cancel()
+									}
+								}
 							}
-							log.Printf("error to stream logs in pod: %v | container: %v | error: %v", p.pod, c, err)
-							time.Sleep(3 * time.Second)
-						}
+						}()
+						time.Sleep(time.Millisecond * 600)
 					}
 				}
-			}()
-			time.Sleep(time.Millisecond * 600)
+
+			}
+			log.Println("wait all old gorutines")
+			subWg.Wait()
 		}
-	}
+
+	}()
+
 }
 
-func (k *Kube) streamPodLogs(namespace, podName, containerName string) error {
+func (k *Kube) streamPodLogs(ctx context.Context, namespace, podName, containerName string) error {
 	sinceTime := v1.NewTime(time.Now())
 
 	req := k.kubeClient.CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{
@@ -121,7 +146,7 @@ func (k *Kube) streamPodLogs(namespace, podName, containerName string) error {
 		SinceTime: &sinceTime,
 	})
 
-	stream, err := req.Stream(k.ctx)
+	stream, err := req.Stream(ctx)
 	if err != nil {
 		return err
 	}
@@ -133,7 +158,7 @@ func (k *Kube) streamPodLogs(namespace, podName, containerName string) error {
 
 	for {
 		select {
-		case <-k.ctx.Done():
+		case <-ctx.Done():
 			return nil
 		default:
 			n, err := stream.Read(buf)

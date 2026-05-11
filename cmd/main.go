@@ -12,6 +12,8 @@ import (
 
 	"github.com/romus204/loggerator/internal/config"
 	"github.com/romus204/loggerator/internal/kube"
+	"github.com/romus204/loggerator/internal/mattermost"
+	"github.com/romus204/loggerator/internal/notifier"
 	"github.com/romus204/loggerator/internal/telegram"
 )
 
@@ -23,13 +25,28 @@ func main() {
 		log.Fatal(err)
 	}
 
-	bot := telegram.NewBot(ctx, config.Telegram)
-	kubeClient := kube.NewCubeClient(ctx, config.Kube, bot)
+	var targets []notifier.Notifier
+	for _, name := range config.Notifiers {
+		switch name {
+		case "telegram":
+			targets = append(targets, telegram.NewBot(ctx, config.Telegram))
+		case "mattermost":
+			targets = append(targets, mattermost.NewClient(ctx, config.Mattermost))
+		default:
+			log.Fatalf("unknown notifier %q: expected \"telegram\" or \"mattermost\"", name)
+		}
+	}
+	if len(targets) == 0 {
+		log.Fatal("no notifiers configured")
+	}
+	n := notifier.NewMultiNotifier(targets...)
+
+	kubeClient := kube.NewCubeClient(ctx, config.Kube, n)
 
 	wg := sync.WaitGroup{}
 
 	kubeClient.Subscribe(&wg)
-	bot.StartSendWorker(&wg)
+	n.StartSendWorker(&wg)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

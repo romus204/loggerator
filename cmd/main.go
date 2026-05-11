@@ -25,12 +25,21 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var n notifier.Notifier
-	if config.Mattermost.Token != "" {
-		n = mattermost.NewClient(ctx, config.Mattermost)
-	} else {
-		n = telegram.NewBot(ctx, config.Telegram)
+	var targets []notifier.Notifier
+	for _, name := range config.Notifiers {
+		switch name {
+		case "telegram":
+			targets = append(targets, telegram.NewBot(ctx, config.Telegram))
+		case "mattermost":
+			targets = append(targets, mattermost.NewClient(ctx, config.Mattermost))
+		default:
+			log.Fatalf("unknown notifier %q: expected \"telegram\" or \"mattermost\"", name)
+		}
 	}
+	if len(targets) == 0 {
+		log.Fatal("no notifiers configured")
+	}
+	n := notifier.NewMultiNotifier(targets...)
 
 	kubeClient := kube.NewCubeClient(ctx, config.Kube, n)
 

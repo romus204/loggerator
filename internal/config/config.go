@@ -11,6 +11,7 @@ import (
 )
 
 type Config struct {
+	Notifiers  []string   `yaml:"notifiers"` // "telegram", "mattermost"
 	Telegram   Telegram   `yaml:"telegram"`
 	Mattermost Mattermost `yaml:"mattermost"`
 	Kube       Kube       `yaml:"kube"`

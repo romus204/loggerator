@@ -12,6 +12,8 @@ import (
 
 	"github.com/romus204/loggerator/internal/config"
 	"github.com/romus204/loggerator/internal/kube"
+	"github.com/romus204/loggerator/internal/mattermost"
+	"github.com/romus204/loggerator/internal/notifier"
 	"github.com/romus204/loggerator/internal/telegram"
 )
 
@@ -23,13 +25,19 @@ func main() {
 		log.Fatal(err)
 	}
 
-	bot := telegram.NewBot(ctx, config.Telegram)
-	kubeClient := kube.NewCubeClient(ctx, config.Kube, bot)
+	var n notifier.Notifier
+	if config.Mattermost.Token != "" {
+		n = mattermost.NewClient(ctx, config.Mattermost)
+	} else {
+		n = telegram.NewBot(ctx, config.Telegram)
+	}
+
+	kubeClient := kube.NewCubeClient(ctx, config.Kube, n)
 
 	wg := sync.WaitGroup{}
 
 	kubeClient.Subscribe(&wg)
-	bot.StartSendWorker(&wg)
+	n.StartSendWorker(&wg)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

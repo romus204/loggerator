@@ -11,14 +11,22 @@ import (
 )
 
 type Config struct {
-	Telegram Telegram `yaml:"telegram"` // telegram chat id
-	Kube     Kube     `yaml:"kube"`     // kube
+	Telegram   Telegram   `yaml:"telegram"`
+	Mattermost Mattermost `yaml:"mattermost"`
+	Kube       Kube       `yaml:"kube"`
 }
 
 type Telegram struct {
-	Token  string         `yaml:"token"` // telegram bot token
-	Chat   int            `yaml:"chat"`  // cat ids
+	Token  string         `yaml:"token"`
+	Chat   int            `yaml:"chat"`
 	Topics map[string]int `yaml:"topics"`
+}
+
+type Mattermost struct {
+	ServerURL  string            `yaml:"server_url"`
+	Token      string            `yaml:"token"`
+	ChannelID  string            `yaml:"channel_id"`
+	Channels   map[string]string `yaml:"channels"`
 }
 
 type Kube struct {
@@ -56,6 +64,11 @@ func substituteEnvVars(value string) string {
 func (c *Config) processEnvVars() {
 	// Process Telegram fields
 	c.Telegram.Token = substituteEnvVars(c.Telegram.Token)
+
+	// Process Mattermost fields
+	c.Mattermost.ServerURL = substituteEnvVars(c.Mattermost.ServerURL)
+	c.Mattermost.Token = substituteEnvVars(c.Mattermost.Token)
+	c.Mattermost.ChannelID = substituteEnvVars(c.Mattermost.ChannelID)
 
 	// Process Kube fields
 	c.Kube.KubeConfig = substituteEnvVars(c.Kube.KubeConfig)

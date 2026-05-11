@@ -13,7 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/romus204/loggerator/internal/config"
-	"github.com/romus204/loggerator/internal/telegram"
+	"github.com/romus204/loggerator/internal/notifier"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -21,7 +21,7 @@ import (
 type Kube struct {
 	kubeClient   *kubernetes.Clientset
 	cfg          config.Kube
-	bot          *telegram.Telegram
+	bot          notifier.Notifier
 	ctx          context.Context
 	FilterRegex  []*regexp.Regexp
 	Replacements []Replacement
@@ -37,7 +37,7 @@ type PodContainer struct {
 	container []string
 }
 
-func NewCubeClient(ctx context.Context, cfg config.Kube, bot *telegram.Telegram) *Kube {
+func NewCubeClient(ctx context.Context, cfg config.Kube, bot notifier.Notifier) *Kube {
 	clientset, err := kubernetes.NewForConfig(cfg.Rest)
 	if err != nil {
 		log.Fatalf("Error creating kubernetes client: %v", err)

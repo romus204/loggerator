@@ -195,6 +195,7 @@ func (k *Kube) filterLogs(logs string) string {
 					line = r.Target.ReplaceAllString(line, r.Replace)
 				}
 				filteredLines = append(filteredLines, line)
+				break
 			}
 		}
 	}

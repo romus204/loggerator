@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,38 +49,30 @@ func (b *Telegram) StartSendWorker(wg *sync.WaitGroup) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer b.ticker.Stop()
 
-		for msg := range b.queue {
-			<-b.ticker.C
-			b.sendToApi(msg)
+		for {
+			select {
+			case <-b.ctx.Done():
+				return
+			case msg := <-b.queue:
+				select {
+				case <-b.ticker.C:
+				case <-b.ctx.Done():
+					return
+				}
+				b.sendToApi(msg)
+			}
 		}
 	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		<-b.ctx.Done()
-		if b.ticker != nil {
-			b.ticker.Stop()
-		}
-		close(b.queue)
-	}()
-}
-
-func (b *Telegram) Stop() {
-	if b.ticker != nil {
-		b.ticker.Stop()
-	}
-	close(b.queue)
 }
 
 func (b *Telegram) Send(msg string, container string) {
 	var formattedLine string
 	if b.isJSON(msg) {
-		formattedLine = fmt.Sprintf("```json\n%s\n```", b.prettyPrintJSON(msg))
+		formattedLine = fmt.Sprintf("```json\n%s\n```", b.escapeCodeBlock(b.prettyPrintJSON(msg)))
 	} else {
-		formattedLine = fmt.Sprintf("```\n%s\n```", msg)
+		formattedLine = fmt.Sprintf("```\n%s\n```", b.escapeCodeBlock(msg))
 	}
 
 	message := SendMessageRequest{
@@ -119,6 +112,14 @@ func (b *Telegram) sendToApi(msg SendMessageRequest) {
 		return
 	}
 
+}
+
+// escapeCodeBlock escapes the characters that MarkdownV2 requires to be
+// escaped inside a ``` code block: backslash and backtick.
+func (b *Telegram) escapeCodeBlock(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, "`", "\\`")
+	return s
 }
 
 func (b *Telegram) isJSON(str string) bool {

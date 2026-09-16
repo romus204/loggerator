@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -22,27 +24,49 @@ type SendMessageRequest struct {
 }
 
 type Telegram struct {
-	ctx     context.Context
-	UrlSend string         // main telegram api url
-	Token   string         // telegram bot token
-	Chat    int            // main chat id
-	Topics  map[string]int // topics list
-	queue   chan SendMessageRequest
-	ticker  *time.Ticker
+	ctx        context.Context
+	UrlSend    string         // main telegram api url
+	Token      string         // telegram bot token
+	Chat       int            // main chat id
+	Topics     map[string]int // topics list
+	queue      chan SendMessageRequest
+	ticker     *time.Ticker
+	httpClient *http.Client
 }
 
 func NewBot(ctx context.Context, cfg config.Telegram) *Telegram {
 	bot := &Telegram{
-		ctx:     ctx,
-		UrlSend: fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", cfg.Token),
-		Token:   cfg.Token,
-		Chat:    cfg.Chat,
-		Topics:  cfg.Topics,
-		queue:   make(chan SendMessageRequest, 1000),
-		ticker:  time.NewTicker(time.Minute / 20),
+		ctx:        ctx,
+		UrlSend:    fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", cfg.Token),
+		Token:      cfg.Token,
+		Chat:       cfg.Chat,
+		Topics:     cfg.Topics,
+		queue:      make(chan SendMessageRequest, 1000),
+		ticker:     time.NewTicker(time.Minute / 20),
+		httpClient: newHTTPClient(cfg.Proxy),
 	}
 
 	return bot
+}
+
+// newHTTPClient builds an http.Client that routes requests through proxyURL,
+// if set. Supported schemes: http, https, socks5.
+func newHTTPClient(proxyURL string) *http.Client {
+	if proxyURL == "" {
+		return http.DefaultClient
+	}
+
+	u, err := url.Parse(proxyURL)
+	if err != nil {
+		log.Printf("telegram: invalid proxy url %q, ignoring: %v", proxyURL, err)
+		return http.DefaultClient
+	}
+
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(u),
+		},
+	}
 }
 
 func (b *Telegram) StartSendWorker(wg *sync.WaitGroup) {
@@ -100,7 +124,12 @@ func (b *Telegram) sendToApi(msg SendMessageRequest) {
 		return
 	}
 
-	resp, err := http.Post(b.UrlSend, "application/json", bytes.NewBuffer(jsonData))
+	client := b.httpClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	resp, err := client.Post(b.UrlSend, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		fmt.Println("Error sending request:", err)
 		return

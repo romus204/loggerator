@@ -19,6 +19,7 @@ type Telegram struct {
 	Token  string         `yaml:"token"` // telegram bot token
 	Chat   int            `yaml:"chat"`  // cat ids
 	Topics map[string]int `yaml:"topics"`
+	Proxy  string         `yaml:"proxy"` // optional proxy url (http, https or socks5), e.g. socks5://user:pass@host:port
 }
 
 type Kube struct {
@@ -56,6 +57,7 @@ func substituteEnvVars(value string) string {
 func (c *Config) processEnvVars() {
 	// Process Telegram fields
 	c.Telegram.Token = substituteEnvVars(c.Telegram.Token)
+	c.Telegram.Proxy = substituteEnvVars(c.Telegram.Proxy)
 
 	// Process Kube fields
 	c.Kube.KubeConfig = substituteEnvVars(c.Kube.KubeConfig)
